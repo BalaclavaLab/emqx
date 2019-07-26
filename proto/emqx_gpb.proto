@@ -1,0 +1,45 @@
+package io.emqx;
+
+option java_multiple_files = true;
+option java_package = "io.emqx";
+option java_outer_classname = "EmqxProto";
+
+message EmqxPresence {
+  optional string username = 1;
+  optional string client_id = 2;
+  optional int64 time = 3;
+  oneof presence {
+    ConnectedMessage connected_message = 4;
+    DisconnectedMessage disconnected_message = 5;
+  }
+}
+
+message ConnectedMessage {
+  optional string ip_address = 1;
+  enum ConnAck {
+    CONNACK_ACCEPT = 0;      // Connection accepted
+    CONNACK_PROTO_VER = 1;   // Unacceptable protocol version
+    CONNACK_INVALID_ID = 2;  // Client Identifier is correct UTF-8 but not allowed by the Server
+    CONNACK_SERVER = 3;      // Server unavailable
+    CONNACK_CREDENTIALS = 4; // Username or password is malformed
+    CONNACK_AUTH = 5;        // Client is not authorized to connect
+  }
+  optional ConnAck conn_ack = 2;
+  optional bool session = 3;
+  optional int32 protocol_version = 4;
+}
+
+message DisconnectedMessage {
+  optional string reason = 1;
+}
+
+message EmqxMessage {
+  optional string username = 1;
+  optional string client_id = 2;
+  optional string topic = 3;
+  optional int32 qos = 4;
+  optional bool retain = 5;
+  optional bool dup = 6;
+  optional int32 id = 7;
+  optional bytes payload = 8;
+}

@@ -18,18 +18,19 @@
 
 -include("emqx.hrl").
 -include("logger.hrl").
+-include("emqx_gpb.hrl").
 
 -logger_header("[Presence]").
 
 %% APIs
--export([ on_client_connected/4
-        , on_client_disconnected/3
-        ]).
+-export([on_client_connected/4
+    , on_client_disconnected/3
+]).
 
 %% emqx_gen_mod callbacks
--export([ load/1
-        , unload/1
-        ]).
+-export([load/1
+    , unload/1
+]).
 
 -define(ATTR_KEYS, [clean_start, proto_ver, proto_name, keepalive]).
 
@@ -38,46 +39,85 @@
 %%------------------------------------------------------------------------------
 
 load(Env) ->
-    emqx_hooks:add('client.connected',    fun ?MODULE:on_client_connected/4, [Env]),
+    KafkaBootstrapEndpointsString = proplists:get_value(kafka_bootstrap_endpoints, Env, "localhost:9092"),
+    KafkaBootstrapEndpoints = parse_kafka_bootstrap_endpoints_string(KafkaBootstrapEndpointsString),
+    PresenceTopic = list_to_binary(proplists:get_value(kafka_presence_topic, Env, "mqtt-presence-raw")),
+    ClientConfig = [{reconnect_cool_down_seconds, 10}],
+    ok = brod:start_client(KafkaBootstrapEndpoints, kafka_client, ClientConfig),
+    ok = brod:start_producer(kafka_client, PresenceTopic, _ProducerConfig = []),
+    emqx_hooks:add('client.connected', fun ?MODULE:on_client_connected/4, [Env]),
     emqx_hooks:add('client.disconnected', fun ?MODULE:on_client_disconnected/3, [Env]).
 
 on_client_connected(#{client_id := ClientId,
-                      username  := Username,
-                      peername  := {IpAddr, _}}, ConnAck, ConnAttrs, Env) ->
+    username   := Username,
+    peername   := {IpAddr, _},
+    clean_sess := CleanSess,
+    proto_ver  := ProtoVer}, ConnAck, ConnAttrs, Env) ->
     Attrs = maps:filter(fun(K, _) ->
-                                lists:member(K, ?ATTR_KEYS)
+        lists:member(K, ?ATTR_KEYS)
                         end, ConnAttrs),
+    Milliseconds = erlang:system_time(millisecond),
     case emqx_json:safe_encode(Attrs#{clientid => ClientId,
-                                      username => Username,
-                                      ipaddress => iolist_to_binary(esockd_net:ntoa(IpAddr)),
-                                      connack => ConnAck,
-                                      ts => erlang:system_time(millisecond)
-                                     }) of
+        username => Username,
+        ipaddress => iolist_to_binary(esockd_net:ntoa(IpAddr)),
+        connack => ConnAck,
+        ts => Milliseconds
+    }) of
         {ok, Payload} ->
-            emqx:publish(message(qos(Env), topic(connected, ClientId), Payload));
+            Result = emqx:publish(message(qos(Env), topic(connected, ClientId), Payload)),
+            Sess = case CleanSess of
+                       true -> false;
+                       false -> true
+                   end,
+            KafkaMessage = #'EmqxPresence'{
+                username = Username,
+                client_id = ClientId,
+                time = Milliseconds,
+                presence = {connected_message, #'ConnectedMessage'{
+                    ip_address = list_to_binary(emqttd_net:ntoa(IpAddr)),
+                    conn_ack = emqx_gpb:'enum_symbol_by_value_ConnectedMessage.ConnAck'(ConnAck),
+                    session = Sess,
+                    protocol_version = ProtoVer}
+                }},
+            PresenceTopic = list_to_binary(proplists:get_value(kafka_presence_topic, Env, "mqtt-presence-raw")),
+            PresenceTopicPartition = rand:uniform(proplists:get_value(kafka_presence_topic_partition_count, Env, 1)) - 1,
+            ok = brod:produce_sync(kafka_client, PresenceTopic, PresenceTopicPartition, ClientId, emqx_gpb:encode_msg(KafkaMessage)),
+            Result;
         {error, Reason} ->
             ?LOG(error, "Encoding connected event error: ~p", [Reason])
     end.
 
 on_client_disconnected(#{client_id := ClientId, username := Username}, Reason, Env) ->
+    Milliseconds = erlang:system_time(millisecond),
     case emqx_json:safe_encode([{clientid, ClientId},
-                                {username, Username},
-                                {reason, reason(Reason)},
-                                {ts, erlang:system_time(millisecond)}]) of
+        {username, Username},
+        {reason, reason(Reason)},
+        {ts, erlang:system_time(millisecond)}]) of
         {ok, Payload} ->
-            emqx_broker:publish(message(qos(Env), topic(disconnected, ClientId), Payload));
+            emqx_broker:publish(message(qos(Env), topic(disconnected, ClientId), Payload)),
+            KafkaMessage = #'EmqxPresence'{
+                username = Username,
+                client_id = ClientId,
+                time = Milliseconds,
+                presence = {disconnected_message, #'DisconnectedMessage'{
+                    reason = reason_binary(Reason)
+                }
+                }},
+            PresenceTopic = list_to_binary(proplists:get_value(kafka_presence_topic, Env, "mqtt-presence-raw")),
+            PresenceTopicPartition = rand:uniform(proplists:get_value(kafka_presence_topic_partition_count, Env, 1)) - 1,
+            ok = brod:produce_sync(kafka_client, PresenceTopic, PresenceTopicPartition, ClientId, emqttd_gpb:encode_msg(KafkaMessage));
         {error, Reason} ->
             ?LOG(error, "Encoding disconnected event error: ~p", [Reason])
     end.
 
 unload(_Env) ->
-    emqx_hooks:del('client.connected',    fun ?MODULE:on_client_connected/4),
+    emqx_hooks:del('client.connected', fun ?MODULE:on_client_connected/4),
     emqx_hooks:del('client.disconnected', fun ?MODULE:on_client_disconnected/3).
 
 message(QoS, Topic, Payload) ->
     emqx_message:set_flag(
-      sys, emqx_message:make(
-             ?MODULE, QoS, Topic, iolist_to_binary(Payload))).
+        sys, emqx_message:make(
+            ?MODULE, QoS, Topic, iolist_to_binary(Payload))).
 
 topic(connected, ClientId) ->
     emqx_topic:systop(iolist_to_binary(["clients/", ClientId, "/connected"]));
@@ -89,3 +129,13 @@ qos(Env) -> proplists:get_value(qos, Env, 0).
 reason(Reason) when is_atom(Reason) -> Reason;
 reason({Error, _}) when is_atom(Error) -> Error;
 reason(_) -> internal_error.
+
+reason_binary(Reason) when is_atom(Reason) -> atom_to_binary(Reason, latin1);
+reason_binary({Error, _}) when is_atom(Error) -> <<"Error">>;
+reason_binary(_) -> <<"internal_error">>.
+
+parse_kafka_bootstrap_endpoints_string(KafkaBootstrapEndpointsString) ->
+    lists:map(fun(HostPort) ->
+        [Host, Port] = re:split(HostPort, "\:", [{return, list}]),
+        {Host, list_to_integer(Port)} end,
+        re:split(KafkaBootstrapEndpointsString, "\,", [{return, list}])).

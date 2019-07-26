@@ -1733,6 +1733,22 @@ end}.
   {validators, ["range:0-2"]}
 ]}.
 
+{mapping, "module.presence.kafka_bootstrap_endpoints", "emqx.modules", [
+  {default, "localhost:9092"},
+  {datatype, string}
+]}.
+
+{mapping, "module.presence.kafka_presence_topic", "emqx.modules", [
+  {default, "mqtt-presence-raw"},
+  {datatype, string}
+]}.
+
+{mapping, "module.presence.kafka_presence_topic_partition_count", "emqx.modules", [
+  {default, 1},
+  {datatype, integer},
+  {validators, ["range:1-64"]}
+]}.
+
 {mapping, "module.subscription", "emqx.modules", [
   {default, off},
   {datatype, flag}
