@@ -1790,7 +1790,12 @@ end}.
   end,
   lists:append([
     case cuttlefish:conf_get("module.presence", Conf) of %% Presence
-        true  -> [{emqx_mod_presence, [{qos, cuttlefish:conf_get("module.presence.qos", Conf, 1)}]}];
+        true  -> [{emqx_mod_presence, [
+          {qos, cuttlefish:conf_get("module.presence.qos", Conf, 1)},
+          {kafka_bootstrap_endpoints, cuttlefish:conf_get("module.presence.kafka_bootstrap_endpoints", Conf, 1)},
+          {kafka_presence_topic, cuttlefish:conf_get("module.presence.kafka_presence_topic", Conf, 1)},
+          {kafka_presence_topic_partition_count, cuttlefish:conf_get("module.presence.kafka_presence_topic_partition_count", Conf, 1)}
+          ]}];
         false -> []
     end,
     case cuttlefish:conf_get("module.subscription", Conf) of %% Subscription
