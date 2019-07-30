@@ -188,10 +188,10 @@ shutdown(Reason) ->
     ?LOG(critical, "emqx shutdown for ~s", [Reason]),
     emqx_alarm_handler:unload(),
     emqx_plugins:unload(),
-    lists:foreach(fun application:stop/1, [emqx, ekka, cowboy, ranch, esockd, gproc]).
+    lists:foreach(fun application:stop/1, [emqx, brod, ekka, cowboy, ranch, esockd, gproc]).
 
 reboot() ->
-    lists:foreach(fun application:start/1, [gproc, esockd, ranch, cowboy, ekka, emqx]).
+    lists:foreach(fun application:start/1, [gproc, esockd, ranch, cowboy, ekka, brod, emqx]).
 
 %%------------------------------------------------------------------------------
 %% Internal functions
