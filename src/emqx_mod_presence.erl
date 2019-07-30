@@ -73,7 +73,7 @@ on_client_connected(
                 client_id = ClientId,
                 time = Milliseconds,
                 presence = {connected_message, #'ConnectedMessage'{
-                    ip_address = list_to_binary(emqttd_net:ntoa(IpAddr)),
+                    ip_address = list_to_binary(esockd_net:ntoa(IpAddr)),
                     conn_ack = emqx_gpb:'enum_symbol_by_value_ConnectedMessage.ConnAck'(ConnAck),
                     session = CleanStart,
                     protocol_version = ProtoVer}
@@ -104,7 +104,7 @@ on_client_disconnected(#{client_id := ClientId, username := Username}, Reason, E
                 }},
             PresenceTopic = list_to_binary(proplists:get_value(kafka_presence_topic, Env, "mqtt-presence-raw")),
             PresenceTopicPartition = rand:uniform(proplists:get_value(kafka_presence_topic_partition_count, Env, 1)) - 1,
-            ok = brod:produce_sync(kafka_client, PresenceTopic, PresenceTopicPartition, ClientId, emqttd_gpb:encode_msg(KafkaMessage));
+            ok = brod:produce_sync(kafka_client, PresenceTopic, PresenceTopicPartition, ClientId, emqx_gpb:encode_msg(KafkaMessage));
         {error, Reason} ->
             ?LOG(error, "Encoding disconnected event error: ~p", [Reason])
     end.
