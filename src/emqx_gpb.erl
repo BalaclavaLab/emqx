@@ -2008,8 +2008,9 @@ enum_value_by_symbol('ConnectedMessage.ConnAck', Sym) ->
 'enum_symbol_by_value_ConnectedMessage.ConnAck'(4) ->
     'CONNACK_CREDENTIALS';
 'enum_symbol_by_value_ConnectedMessage.ConnAck'(5) ->
-    'CONNACK_AUTH'.
-
+    'CONNACK_AUTH';
+'enum_symbol_by_value_ConnectedMessage.ConnAck'(_) -> % workaround for unknown code
+    'CONNACK_INVALID_ID'.
 
 'enum_value_by_symbol_ConnectedMessage.ConnAck'('CONNACK_ACCEPT') ->
     0;
