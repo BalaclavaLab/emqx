@@ -39,6 +39,7 @@
 %%------------------------------------------------------------------------------
 
 load(Env) ->
+    {ok, _} = application:ensure_all_started(brod),
     KafkaBootstrapEndpointsString = proplists:get_value(kafka_bootstrap_endpoints, Env, "localhost:9092"),
     KafkaBootstrapEndpoints = parse_kafka_bootstrap_endpoints_string(KafkaBootstrapEndpointsString),
     PresenceTopic = list_to_binary(proplists:get_value(kafka_presence_topic, Env, "mqtt-presence-raw")),
