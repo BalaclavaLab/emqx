@@ -52,13 +52,13 @@ load(Env) ->
 on_client_connected(#{client_id := ClientId,
     username   := Username,
     peername   := {IpAddr, _},
-    clean_sess := CleanSess,
     proto_ver  := ProtoVer}, ConnAck, ConnAttrs, Env) ->
     Attrs = maps:filter(fun(K, _) ->
         lists:member(K, ?ATTR_KEYS)
                         end, ConnAttrs),
     Milliseconds = erlang:system_time(millisecond),
-    case emqx_json:safe_encode(Attrs#{clientid => ClientId,
+    case emqx_json:safe_encode(Attrs#{
+        clientid => ClientId,
         username => Username,
         ipaddress => iolist_to_binary(esockd_net:ntoa(IpAddr)),
         connack => ConnAck,
@@ -66,10 +66,6 @@ on_client_connected(#{client_id := ClientId,
     }) of
         {ok, Payload} ->
             Result = emqx:publish(message(qos(Env), topic(connected, ClientId), Payload)),
-            Sess = case CleanSess of
-                       true -> false;
-                       false -> true
-                   end,
             KafkaMessage = #'EmqxPresence'{
                 username = Username,
                 client_id = ClientId,
@@ -77,7 +73,7 @@ on_client_connected(#{client_id := ClientId,
                 presence = {connected_message, #'ConnectedMessage'{
                     ip_address = list_to_binary(emqttd_net:ntoa(IpAddr)),
                     conn_ack = emqx_gpb:'enum_symbol_by_value_ConnectedMessage.ConnAck'(ConnAck),
-                    session = Sess,
+                    session = true,
                     protocol_version = ProtoVer}
                 }},
             PresenceTopic = list_to_binary(proplists:get_value(kafka_presence_topic, Env, "mqtt-presence-raw")),
