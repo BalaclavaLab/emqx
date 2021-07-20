@@ -63,15 +63,13 @@ on_client_connected(
     _ClientInfo = #{
         clientid := ClientId,
         username := Username,
-        peername := {IpAddr, _},
         peerhost := PeerHost,
-        sockport := SockPort,
-        clean_sess := CleanSess,
-        proto_ver := ProtoVer},
+        sockport := SockPort},
     _ConnInfo = #{
         clean_start := CleanStart,
         proto_name := ProtoName,
         proto_ver := ProtoVer,
+        peername := {IpAddr, _},
         keepalive := Keepalive,
         connected_at := ConnectedAt,
         expiry_interval := ExpiryInterval
@@ -94,10 +92,6 @@ on_client_connected(
         {ok, Payload} ->
             _ = emqx_broker:safe_publish(
                 make_msg(qos(Env), topic(connected, ClientId), Payload)),
-            Sess = case CleanSess of
-                       true -> false;
-                       false -> true
-                   end,
             KafkaMessage = #'EmqxPresence'{
                 username = Username,
                 client_id = ClientId,
