@@ -97,7 +97,7 @@ on_client_connected(
                 client_id = ClientId,
                 time = Milliseconds,
                 presence = {connected_message, #'ConnectedMessage'{
-                    ip_address = list_to_binary(ntoa(IpAddr)),
+                    ip_address = ntoa(IpAddr),
                     conn_ack = emqx_gpb:'enum_symbol_by_value_ConnectedMessage.ConnAck'(0),
                     session = CleanStart,
                     protocol_version = ProtoVer}
