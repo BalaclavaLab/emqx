@@ -132,7 +132,7 @@ on_client_disconnected(_ClientInfo = #{clientid := ClientId, username := Usernam
                 }},
             PresenceTopic = list_to_binary(proplists:get_value(kafka_presence_topic, Env, "mqtt-presence-raw")),
             PresenceTopicPartition = rand:uniform(proplists:get_value(kafka_presence_topic_partition_count, Env, 1)) - 1,
-            ok = brod:produce_sync(kafka_client, PresenceTopic, PresenceTopicPartition, ClientId, emqttd_gpb:encode_msg(KafkaMessage));
+            ok = brod:produce_sync(kafka_client, PresenceTopic, PresenceTopicPartition, ClientId, emqx_gpb:encode_msg(KafkaMessage));
         {error, _Reason} ->
             ?LOG(error, "Failed to encode 'disconnected' presence: ~p", [Presence])
     end.
